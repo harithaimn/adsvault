@@ -11,6 +11,8 @@ pymongo
 openai
 
 streamlit
+sentence-transformers
+
 #transformers
 #torch
 #datasets
