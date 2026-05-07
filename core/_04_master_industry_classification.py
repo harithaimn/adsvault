@@ -89,303 +89,310 @@ LABELS = [
 #     print(f"Loaded {len(df)} rows from {path}")
 #     return df
 
-# ==========================================================
-# LOAD FROM S3
-# ==========================================================
-obj = s3.get_object(
-    Bucket=S3_BUCKET,
-    Key=S3_INPUT
-)
 
-df = pd.read_csv(
-    obj["Body"],
-    dtype={"page_id": "string"}
-)
+def main():
 
-df["page_id"] = (
-    df["page_id"]
-    .astype("string")
-    .str.strip()
-    .str.replace(r"\.0$", "", regex=True)
-)
+    # ==========================================================
+    # LOAD FROM S3
+    # ==========================================================
+    obj = s3.get_object(
+        Bucket=S3_BUCKET,
+        Key=S3_INPUT
+    )
 
-print("Loaded:", len(df))
+    df = pd.read_csv(
+        obj["Body"],
+        dtype={"page_id": "string"}
+    )
 
+    df["page_id"] = (
+        df["page_id"]
+        .astype("string")
+        .str.strip()
+        .str.replace(r"\.0$", "", regex=True)
+    )
 
-# # =========================
-# BUILD INPUT TEXT
-# =========================
-def build_text(row):
-    parts = []
-
-    for col in [
-        "page_category",
-        "page_name",
-        "page_description",
-        "page_about",
-        "page_website"
-    ]:
-        val = row.get(col)
-
-        if pd.notna(val) and str(val).strip():
-            parts.append(str(val))
-
-    return " ".join(parts).lower()
-
-# # What's this for? Oh, it's for below. 
-# def match(pattern, text):
-#     return re.search(pattern, text)
+    print("Loaded:", len(df))
 
 
-""" Robust rule-based """
-def rule_based(row):
-    text = build_text(row)
+    # # =========================
+    # BUILD INPUT TEXT
+    # =========================
+    def build_text(row):
+        parts = []
 
-    if not text:
+        for col in [
+            "page_category",
+            "page_name",
+            "page_description",
+            "page_about",
+            "page_website"
+        ]:
+            val = row.get(col)
+
+            if pd.notna(val) and str(val).strip():
+                parts.append(str(val))
+
+        return " ".join(parts).lower()
+
+    # # What's this for? Oh, it's for below. 
+    # def match(pattern, text):
+    #     return re.search(pattern, text)
+
+
+    """ Robust rule-based """
+    def rule_based(row):
+        text = build_text(row)
+
+        if not text:
+            return None, None
+
+        # custom override
+        if re.search(r"\b(adnexio|decoris|meniaga|invoke)\b", text):
+            return "Information, Tech & Telecommunications", 1.0
+
+        # # high precision
+        # if re.search(r"\b(ngo|non[- ]?government|government|netizen|public|rakyat|community|charity|selangor|foundation|pertubuhan|kebajikan|politics|political|politician|non profit|non-profit|nonprofit)\b", text):
+        #     return "NGOs", 1.0
+
+        # =========================
+        # GOVERNMENT (FIRST)
+        # =========================
+        if re.search(r"\b(government|kerajaan|ministry|kementerian|jabatan)\b", text):
+            return "Government", 1.0 # 1.0
+
+        if re.search(r"\b(politics|political|politician|Politician|Political Candidate)\b", text):
+            return "Politician", 1.0 # 1.0
+
+        # =========================
+        # NGOs (SECOND)
+        # =========================
+        if re.search(r"\b(Ayuh Malaysia|ngo|non[- ]?government|non profit|non-profit|nonprofit|charity|foundation|netizen|rakyat|community|pertubuhan|kebajikan|community organization|volunteer)\b", text):
+            return "NGOs", 1.0 # 1.0
+
+        if re.search(r"\b(clinic|hospital|medical|doctor|pharmacy|dentist|health|wellness|supplement|vitamin)\b", text):
+            return "Healthcare & Life Sciences", 1.0
+
+        if re.search(r"\b(finance|financial|insurance|takaful|investment|wealth|loan|credit)\b", text):
+            return "Finance & Insurance", 0.9
+
+        if re.search(r"\b(property|real estate|hartanah|developer|condo|apartment|realty)\b", text):
+            return "Property & Real Estate", 1.0
+
+        if re.search(r"\b(auto|car|motor|vehicle|dealership|4s|tuning)\b", text):
+            return "Automotive", 1.0
+
+        if re.search(r"\b(logistic|freight|cargo|shipping|courier|delivery|fleet)\b", text):
+            return "Logistics & Transportation", 1.0
+
+        if re.search(r"\b(energy|solar|oil|gas|power|charging)\b", text):
+            return "Natural Resources & Energy", 1.0
+
+        if re.search(r"\b(software|technology|digital|app|platform|system|wifi|data|ai|cloud|e commerce|e-commerce)\b", text):
+            return "Information, Tech & Telecommunications", 0.9
+
+        if re.search(r"\b(education|school|tuition|learning|training|university|kindergarten|course)\b", text):
+            return "Education", 1.0
+
+        # mid signal
+        if re.search(r"\b(food|restaurant|cafe|kopi|bakery|pizza|steak|dim sum|coffee|beverage)\b", text):
+            return "Food & Beverages", 1.0
+
+        if re.search(r"\b(grocery|supermarket|organic|snack|consumer product)\b", text):
+            return "FMCG", 1.0 #  0.9
+
+        if re.search(r"\b(beauty|skincare|cosmetic|spa|salon|aesthetic|perfume|fragrance)\b", text):
+            return "Beauty & Body Care", 1.0
+
+        if re.search(r"\b(clothing|fashion|apparel|jewellery|boutique|wear|hijab)\b", text):
+            return "Fashion & Lifestyle", 1.0
+
+        if re.search(r"\b(construction|contractor|interior|renovation|furniture|lighting|kitchen|bathroom|home improvement)\b", text):
+            return "Interior Design & Construction", 1.0
+
+        if re.search(r"\b(manufacturing|factory|production|wholesale|supplier|industrial)\b", text):
+            return "Manufacturing & Production", 0.9 #  0.9
+
+        if re.search(r"\b(farm|agriculture|livestock|fishery|plantation)\b", text):
+            return "Agriculture & Forestry/Wildlife", 0.9 #  0.9
+
+        if re.search(r"\b(travel|tour|hotel|lodging|agency|trip|booking)\b", text):
+            return "Leisure, Tourism & Travel", 1.0
+
+        if re.search(r"\b(media|production|film|entertainment|creator|streaming|music)\b", text):
+            return "Media & Entertainment", 0.9
+
+        if re.search(r"\b(advertising|marketing|branding|pr|relations|agency)\b", text):
+            return "Advertising & Communications", 0.9
+
+        # fallback
+        if re.search(r"\b(service|cleaning|repair|consultant|advisor|printing|maintenance)\b", text):
+            return "Consumer Services", 0.7
+
         return None, None
 
-    # custom override
-    if re.search(r"\b(adnexio|decoris|meniaga|invoke)\b", text):
-        return "Information, Tech & Telecommunications", 1.0
-
-    # # high precision
-    # if re.search(r"\b(ngo|non[- ]?government|government|netizen|public|rakyat|community|charity|selangor|foundation|pertubuhan|kebajikan|politics|political|politician|non profit|non-profit|nonprofit)\b", text):
-    #     return "NGOs", 1.0
 
     # =========================
-    # GOVERNMENT (FIRST)
+    # OPENAI CLASSIFIER
     # =========================
-    if re.search(r"\b(government|kerajaan|ministry|kementerian|jabatan)\b", text):
-        return "Government", 1.0 # 1.0
+    # def classify_text(text):
+    def classify_text(row):
+        prompt = f"""
+    You are a strict industry classifier.
 
-    if re.search(r"\b(politics|political|politician|Politician|Political Candidate)\b", text):
-        return "Politician", 1.0 # 1.0
+    Classify the company into EXACTLY ONE of the following industries:
 
-    # =========================
-    # NGOs (SECOND)
-    # =========================
-    if re.search(r"\b(Ayuh Malaysia|ngo|non[- ]?government|non profit|non-profit|nonprofit|charity|foundation|netizen|rakyat|community|pertubuhan|kebajikan|community organization|volunteer)\b", text):
-        return "NGOs", 1.0 # 1.0
+    {chr(10).join(LABELS)}
 
-    if re.search(r"\b(clinic|hospital|medical|doctor|pharmacy|dentist|health|wellness|supplement|vitamin)\b", text):
-        return "Healthcare & Life Sciences", 1.0
+    Instructions (must follow):
 
-    if re.search(r"\b(finance|financial|insurance|takaful|investment|wealth|loan|credit)\b", text):
-        return "Finance & Insurance", 0.9
+    1. USE ALL FIELDS TOGETHER:
+    - Do NOT blindly trust page_category
+    - Cross-check with page_name, description, and about
+    - If page_category is generic (e.g. "community", "local business"), IGNORE it
 
-    if re.search(r"\b(property|real estate|hartanah|developer|condo|apartment|realty)\b", text):
-        return "Property & Real Estate", 1.0
+    2. DECISION LOGIC:
+    - Use the MOST SPECIFIC and CLEAR signal across all fields
+    - Prefer concrete business activity over generic labels
+    - If conflict:
+        → description/about > page_category > page_name
 
-    if re.search(r"\b(auto|car|motor|vehicle|dealership|4s|tuning)\b", text):
-        return "Automotive", 1.0
+    3. DISAMBIGUATION:
+    - Restaurant / cafe → Food & Beverages
+    - Packaged food / brand → FMCG
+    - Property selling → Property & Real Estate
+    - Renovation / interior → Interior Design & Construction
+    - Software / digital / platform → Information, Tech & Telecommunications
+    - NGO / charity → NGOs
+    - Government / ministry → Government
+    - Politician / political → Politician
 
-    if re.search(r"\b(logistic|freight|cargo|shipping|courier|delivery|fleet)\b", text):
-        return "Logistics & Transportation", 1.0
+    4. OUTPUT:
+    - EXACTLY one label
+    - No explanation
 
-    if re.search(r"\b(energy|solar|oil|gas|power|charging)\b", text):
-        return "Natural Resources & Energy", 1.0
-
-    if re.search(r"\b(software|technology|digital|app|platform|system|wifi|data|ai|cloud|e commerce|e-commerce)\b", text):
-        return "Information, Tech & Telecommunications", 0.9
-
-    if re.search(r"\b(education|school|tuition|learning|training|university|kindergarten|course)\b", text):
-        return "Education", 1.0
-
-    # mid signal
-    if re.search(r"\b(food|restaurant|cafe|kopi|bakery|pizza|steak|dim sum|coffee|beverage)\b", text):
-        return "Food & Beverages", 1.0
-
-    if re.search(r"\b(grocery|supermarket|organic|snack|consumer product)\b", text):
-        return "FMCG", 1.0 #  0.9
-
-    if re.search(r"\b(beauty|skincare|cosmetic|spa|salon|aesthetic|perfume|fragrance)\b", text):
-        return "Beauty & Body Care", 1.0
-
-    if re.search(r"\b(clothing|fashion|apparel|jewellery|boutique|wear|hijab)\b", text):
-        return "Fashion & Lifestyle", 1.0
-
-    if re.search(r"\b(construction|contractor|interior|renovation|furniture|lighting|kitchen|bathroom|home improvement)\b", text):
-        return "Interior Design & Construction", 1.0
-
-    if re.search(r"\b(manufacturing|factory|production|wholesale|supplier|industrial)\b", text):
-        return "Manufacturing & Production", 0.9 #  0.9
-
-    if re.search(r"\b(farm|agriculture|livestock|fishery|plantation)\b", text):
-        return "Agriculture & Forestry/Wildlife", 0.9 #  0.9
-
-    if re.search(r"\b(travel|tour|hotel|lodging|agency|trip|booking)\b", text):
-        return "Leisure, Tourism & Travel", 1.0
-
-    if re.search(r"\b(media|production|film|entertainment|creator|streaming|music)\b", text):
-        return "Media & Entertainment", 0.9
-
-    if re.search(r"\b(advertising|marketing|branding|pr|relations|agency)\b", text):
-        return "Advertising & Communications", 0.9
-
-    # fallback
-    if re.search(r"\b(service|cleaning|repair|consultant|advisor|printing|maintenance)\b", text):
-        return "Consumer Services", 0.7
-
-    return None, None
-
-
-# =========================
-# OPENAI CLASSIFIER
-# =========================
-# def classify_text(text):
-def classify_text(row):
-    prompt = f"""
-You are a strict industry classifier.
-
-Classify the company into EXACTLY ONE of the following industries:
-
-{chr(10).join(LABELS)}
-
-Instructions (must follow):
-
-1. USE ALL FIELDS TOGETHER:
-   - Do NOT blindly trust page_category
-   - Cross-check with page_name, description, and about
-   - If page_category is generic (e.g. "community", "local business"), IGNORE it
-
-2. DECISION LOGIC:
-   - Use the MOST SPECIFIC and CLEAR signal across all fields
-   - Prefer concrete business activity over generic labels
-   - If conflict:
-       → description/about > page_category > page_name
-
-3. DISAMBIGUATION:
-   - Restaurant / cafe → Food & Beverages
-   - Packaged food / brand → FMCG
-   - Property selling → Property & Real Estate
-   - Renovation / interior → Interior Design & Construction
-   - Software / digital / platform → Information, Tech & Telecommunications
-   - NGO / charity → NGOs
-   - Government / ministry → Government
-   - Politician / political → Politician
-
-4. OUTPUT:
-   - EXACTLY one label
-   - No explanation
-
-Input:
-{{
-page_category: {row.get("page_category","")}
-page_name: {row.get("page_name","")}
-description: {row.get("page_description","")}
-about: {row.get("page_about","")}
-website: {row.get("page_website","")}
-}}
-"""
-    
-    label = None
-
-    for _ in range(3):
-        try:
-            response = client.responses.create(
-                model=MODEL,
-                temperature=0,
-                input=prompt
-            )
-
-            #label = response.output_text.strip()
-            label = response.output[0].content[0].text.strip()
-
-            # normalize
-            label = label.replace(".", "").strip()
-
-            # hard match fallback
-            for l in LABELS:
-                if l.lower() in label.lower():
-                    label = l
-                    break
-            break
-        except:
-            continue
-
-    # if label is None:
-    #     return "Unknown", 0.0
-
-    # if label not in LABELS:
-    #     return "Unknown", 0.0
-    if label is None or label not in LABELS:
-        return "Unknown", 0.0
-
-    return label, 0.9
-
-# → description/about > page_name > page_category
-
-# # =========================
-# # APPLY TO DATAFRAME
-# # =========================
-# def classify_dataframe(df):
-#     industries = []
-#     scores = []
-
-#     for _, row in df.iterrows():
-
-#         # 1. rule-based
-#         label, score = rule_based(row)
-
-#         # 2. fallback to LLM
-#         #if label is None:
-#         if label is None or score < 1.0:
+    Input:
+    {{
+    page_category: {row.get("page_category","")}
+    page_name: {row.get("page_name","")}
+    description: {row.get("page_description","")}
+    about: {row.get("page_about","")}
+    website: {row.get("page_website","")}
+    }}
+    """
         
-#             #text = build_text(row)
-#             #label, score = classify_text(text)
-#             label, score = classify_text(row)
+        label = None
 
-#         industries.append(label)
-#         scores.append(score)
+        for _ in range(3):
+            try:
+                response = client.responses.create(
+                    model=MODEL,
+                    temperature=0,
+                    input=prompt
+                )
 
-#     df["predicted_industry"] = industries
-#     df["score"] = scores
-#     return df
-# ==========================================================
-# APPLY
-# ==========================================================
-industries = []
-scores = []
+                #label = response.output_text.strip()
+                label = response.output[0].content[0].text.strip()
 
-for _, row in df.iterrows():
+                # normalize
+                label = label.replace(".", "").strip()
 
-    label, score = rule_based(row)
+                # hard match fallback
+                for l in LABELS:
+                    if l.lower() in label.lower():
+                        label = l
+                        break
+                break
+            except:
+                continue
 
-    if label is None:
-        label, score = classify_text(row)
+        # if label is None:
+        #     return "Unknown", 0.0
 
-    industries.append(label)
-    scores.append(score)
+        # if label not in LABELS:
+        #     return "Unknown", 0.0
+        if label is None or label not in LABELS:
+            return "Unknown", 0.0
 
-df["predicted_industry"] = industries
-df["score"] = scores
+        return label, 0.9
 
-# # =========================
-# # EXAMPLE USAGE
-# # =========================
-# if __name__ == "__main__":
+    # → description/about > page_name > page_category
 
-#     # -- LOAD UNLABELED DATA
-#     df = load_csv(UNLABELED_PATH)
+    # # =========================
+    # # APPLY TO DATAFRAME
+    # # =========================
+    # def classify_dataframe(df):
+    #     industries = []
+    #     scores = []
 
-#     # -- CLASSIFY --
-#     df = classify_dataframe(df)
+    #     for _, row in df.iterrows():
 
-#     # -- SAVE --
-#     df.to_csv(OUTPUT_PATH, index=False)
+    #         # 1. rule-based
+    #         label, score = rule_based(row)
 
-#     print(df[["page_name", "predicted_industry", "score"]])
+    #         # 2. fallback to LLM
+    #         #if label is None:
+    #         if label is None or score < 1.0:
+            
+    #             #text = build_text(row)
+    #             #label, score = classify_text(text)
+    #             label, score = classify_text(row)
 
-# ==========================================================
-# SAVE TO S3
-# ==========================================================
-csv_bytes = df.to_csv(index=False).encode("utf-8")
+    #         industries.append(label)
+    #         scores.append(score)
 
-s3.put_object(
-    Bucket=S3_BUCKET,
-    Key=S3_OUTPUT,
-    Body=csv_bytes
-)
+    #     df["predicted_industry"] = industries
+    #     df["score"] = scores
+    #     return df
+    # ==========================================================
+    # APPLY
+    # ==========================================================
+    industries = []
+    scores = []
 
-print("Uploaded:", S3_OUTPUT)
-print(df[["page_name", "predicted_industry", "score"]].head())
+    for _, row in df.iterrows():
+
+        label, score = rule_based(row)
+
+        if label is None:
+            label, score = classify_text(row)
+
+        industries.append(label)
+        scores.append(score)
+
+    df["predicted_industry"] = industries
+    df["score"] = scores
+
+    # # =========================
+    # # EXAMPLE USAGE
+    # # =========================
+    # if __name__ == "__main__":
+
+    #     # -- LOAD UNLABELED DATA
+    #     df = load_csv(UNLABELED_PATH)
+
+    #     # -- CLASSIFY --
+    #     df = classify_dataframe(df)
+
+    #     # -- SAVE --
+    #     df.to_csv(OUTPUT_PATH, index=False)
+
+    #     print(df[["page_name", "predicted_industry", "score"]])
+
+    # ==========================================================
+    # SAVE TO S3
+    # ==========================================================
+    csv_bytes = df.to_csv(index=False).encode("utf-8")
+
+    s3.put_object(
+        Bucket=S3_BUCKET,
+        Key=S3_OUTPUT,
+        Body=csv_bytes
+    )
+
+    print("Uploaded:", S3_OUTPUT)
+    print(df[["page_name", "predicted_industry", "score"]].head())
+
+
+if __name__ == "__main__":
+    main()

@@ -32,98 +32,105 @@ s3 = boto3.client(
     region_name=AWS_DEFAULT_REGION
 )
 
-# ==========================================================
-# 1. GET BUSINESS METADATA
-# ==========================================================
-biz_res = requests.get(
-    f"{BASE_URL}/{BUSINESS_ID}",
-    params={
-        "fields": "name,vertical",
-        "access_token": ACCESS_TOKEN
-    },
-    timeout=30
-)
 
-biz_res.raise_for_status()
-biz = biz_res.json()
+def main():
+        
+    # ==========================================================
+    # 1. GET BUSINESS METADATA
+    # ==========================================================
+    biz_res = requests.get(
+        f"{BASE_URL}/{BUSINESS_ID}",
+        params={
+            "fields": "name,vertical",
+            "access_token": ACCESS_TOKEN
+        },
+        timeout=30
+    )
+
+    biz_res.raise_for_status()
+    biz = biz_res.json()
 
 
-# =========================
-# 2. Helper: paginate pages
-# =========================
-def fetch_pages(edge):
-    url = f"{BASE_URL}/{BUSINESS_ID}/{edge}"
+    # =========================
+    # 2. Helper: paginate pages
+    # =========================
+    def fetch_pages(edge):
+        url = f"{BASE_URL}/{BUSINESS_ID}/{edge}"
 
-    params = {
-        "fields": "id,name,category,description,about,website",
-        "limit": 100,
-        "access_token": ACCESS_TOKEN
-    }
+        params = {
+            "fields": "id,name,category,description,about,website",
+            "limit": 100,
+            "access_token": ACCESS_TOKEN
+        }
 
+        rows = []
+
+        while url:
+            r = requests.get(url, params=params)
+            r.raise_for_status()
+
+            data = r.json()
+
+            rows.extend(data.get("data", []))
+
+            url = data.get("paging", {}).get("next")
+            params = {}  # important
+
+        return rows
+
+    # =========================
+    # 3. Fetch both
+    # =========================
+    owned_pages = fetch_pages("owned_pages")
+    client_pages = fetch_pages("client_pages")
+
+    all_pages = [
+        ("owned", p) for p in owned_pages
+    ] + [
+        ("client", p) for p in client_pages
+    ]
+
+    # =========================
+    # 4. Flatten
+    # =========================
     rows = []
 
-    while url:
-        r = requests.get(url, params=params)
-        r.raise_for_status()
+    for source, p in tqdm(all_pages, desc="Processing pages", unit="page"):
+        rows.append({
+            "business_id": BUSINESS_ID,
+            "business_name": biz.get("name"),
+            "business_vertical": biz.get("vertical"),
+            "source": source,  # owned vs client
 
-        data = r.json()
+            "page_id": p.get("id"),
+            "page_name": p.get("name"),
+            "page_category": p.get("category"),
+            "page_description": p.get("description"),
+            "page_about": p.get("about"),
+            "page_website": p.get("website"),
+        })
 
-        rows.extend(data.get("data", []))
+    df = pd.DataFrame(rows)
 
-        url = data.get("paging", {}).get("next")
-        params = {}  # important
+    # ==========================================================
+    # 5. CLEAN
+    # ==========================================================
+    df = df.drop_duplicates(subset=["page_id"]).reset_index(drop=True)
 
-    return rows
+    # ==========================================================
+    # 6. SAVE TO S3
+    # ==========================================================
+    csv_bytes = df.to_csv(index=False).encode("utf-8")
 
-# =========================
-# 3. Fetch both
-# =========================
-owned_pages = fetch_pages("owned_pages")
-client_pages = fetch_pages("client_pages")
+    s3.put_object(
+        Bucket=S3_BUCKET,
+        Key=S3_OUTPUT,
+        Body=csv_bytes,
+    )
 
-all_pages = [
-    ("owned", p) for p in owned_pages
-] + [
-    ("client", p) for p in client_pages
-]
+    print("Rows:", len(df))
+    print("Uploaded:", S3_OUTPUT)
 
-# =========================
-# 4. Flatten
-# =========================
-rows = []
 
-for source, p in tqdm(all_pages, desc="Processing pages", unit="page"):
-    rows.append({
-        "business_id": BUSINESS_ID,
-        "business_name": biz.get("name"),
-        "business_vertical": biz.get("vertical"),
-        "source": source,  # owned vs client
-
-        "page_id": p.get("id"),
-        "page_name": p.get("name"),
-        "page_category": p.get("category"),
-        "page_description": p.get("description"),
-        "page_about": p.get("about"),
-        "page_website": p.get("website"),
-    })
-
-df = pd.DataFrame(rows)
-
-# ==========================================================
-# 5. CLEAN
-# ==========================================================
-df = df.drop_duplicates(subset=["page_id"]).reset_index(drop=True)
-
-# ==========================================================
-# 6. SAVE TO S3
-# ==========================================================
-csv_bytes = df.to_csv(index=False).encode("utf-8")
-
-s3.put_object(
-    Bucket=S3_BUCKET,
-    Key=S3_OUTPUT,
-    Body=csv_bytes,
-)
-
-print("Rows:", len(df))
-print("Uploaded:", S3_OUTPUT)
+if __name__ == "__main__":
+    main()

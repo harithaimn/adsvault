@@ -500,8 +500,7 @@ class RAGRetriever:
 # RUNNER
 # =====================================
 
-if __name__ == "__main__":
-
+def main():
     obj = s3.get_object(
         Bucket=S3_BUCKET,
         Key=S3_INPUT
@@ -556,3 +555,8 @@ if __name__ == "__main__":
             print("Final Score   :", r.get("final_business_score", ""))
             print("Semantic      :", r.get("semantic_score", ""))
             print("-" * 100)
+
+
+if __name__ == "__main__":
+    main()
+    

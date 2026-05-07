@@ -627,7 +627,7 @@ def clean_dataframe(df: pd.DataFrame) -> pd.DataFrame:
 # SCRIPT MODE
 # =====================================================
 
-if __name__ == "__main__":
+def main():
     # INPUT = "raw_meta.csv"
     # OUTPUT = "clean_meta.csv"
 
@@ -667,3 +667,7 @@ if __name__ == "__main__":
 
     print("Rows after clean:", len(df))
     print("Uploaded:", S3_OUTPUT)
+
+    
+if __name__ == "__main__":
+    main()

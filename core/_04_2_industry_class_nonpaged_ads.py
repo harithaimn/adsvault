@@ -72,284 +72,291 @@ LABELS = [
     "Property & Real Estate"
 ]
 
-# ==========================================================
-# LOAD
-# ==========================================================
-obj = s3.get_object(
-    Bucket=S3_BUCKET,
-    Key=S3_INPUT
-)
 
-df = pd.read_csv(obj["Body"])
+def main():
+        
+    # ==========================================================
+    # LOAD
+    # ==========================================================
+    obj = s3.get_object(
+        Bucket=S3_BUCKET,
+        Key=S3_INPUT
+    )
 
-print("Loaded:", len(df))
+    df = pd.read_csv(obj["Body"])
 
-# ==========================================================
-# TARGET ONLY NON PAGE ADS
-# ==========================================================
-mask = df["has_facebook_page"] == False
-target = df.loc[mask].copy()
+    print("Loaded:", len(df))
 
-print("Need classify:", len(target))
+    # ==========================================================
+    # TARGET ONLY NON PAGE ADS
+    # ==========================================================
+    mask = df["has_facebook_page"] == False
+    target = df.loc[mask].copy()
 
-
-# ==========================================================
-# BUILD TEXT
-# ==========================================================
-def build_text(row):
-    parts = []
-
-    for col in [
-        "ad_body",
-        "creative_name",
-        "ad_name",
-        "ad_title",
-        "interests",
-        "behaviors",
-        "campaign_name",
-        "adset_name",
-    ]:
-        val = row.get(col)
-
-        if pd.notna(val) and str(val).strip():
-            parts.append(str(val))
-
-    return " ".join(parts).lower()
+    print("Need classify:", len(target))
 
 
-# ==========================================================
-# RULE BASED
-# ==========================================================
-def rule_based(row):
-    text = build_text(row)
+    # ==========================================================
+    # BUILD TEXT
+    # ==========================================================
+    def build_text(row):
+        parts = []
 
-    if not text:
+        for col in [
+            "ad_body",
+            "creative_name",
+            "ad_name",
+            "ad_title",
+            "interests",
+            "behaviors",
+            "campaign_name",
+            "adset_name",
+        ]:
+            val = row.get(col)
+
+            if pd.notna(val) and str(val).strip():
+                parts.append(str(val))
+
+        return " ".join(parts).lower()
+
+
+    # ==========================================================
+    # RULE BASED
+    # ==========================================================
+    def rule_based(row):
+        text = build_text(row)
+
+        if not text:
+            return None, None
+
+        # custom override
+        if re.search(r"\b(adnexio|decoris|meniaga|invoke)\b", text):
+            return "Information, Tech & Telecommunications", 1.0
+
+        # # high precision
+        # if re.search(r"\b(ngo|non[- ]?government|government|netizen|public|rakyat|community|charity|selangor|foundation|pertubuhan|kebajikan|politics|political|politician|non profit|non-profit|nonprofit)\b", text):
+        #     return "NGOs", 1.0
+
+        # =========================
+        # GOVERNMENT (FIRST)
+        # =========================
+        if re.search(r"\b(government|kerajaan|ministry|kementerian|jabatan)\b", text):
+            return "Government", 1.0 # 1.0
+
+        if re.search(r"\b(politics|political|politician|Politician|Political Candidate)\b", text):
+            return "Politician", 1.0 # 1.0
+
+        # =========================
+        # NGOs (SECOND)
+        # =========================
+        if re.search(r"\b(Ayuh Malaysia|ngo|non[- ]?government|non profit|non-profit|nonprofit|charity|foundation|netizen|rakyat|community|pertubuhan|kebajikan|community organization|volunteer)\b", text):
+            return "NGOs", 1.0 # 1.0
+
+        if re.search(r"\b(clinic|hospital|medical|doctor|pharmacy|dentist|health|wellness|supplement|vitamin)\b", text):
+            return "Healthcare & Life Sciences", 1.0
+
+        if re.search(r"\b(finance|financial|insurance|takaful|investment|wealth|loan|credit)\b", text):
+            return "Finance & Insurance", 0.9
+
+        if re.search(r"\b(property|real estate|hartanah|developer|condo|apartment|realty)\b", text):
+            return "Property & Real Estate", 1.0
+
+        if re.search(r"\b(auto|car|motor|vehicle|dealership|4s|tuning)\b", text):
+            return "Automotive", 1.0
+
+        if re.search(r"\b(logistic|freight|cargo|shipping|courier|delivery|fleet)\b", text):
+            return "Logistics & Transportation", 1.0
+
+        if re.search(r"\b(energy|solar|oil|gas|power|charging)\b", text):
+            return "Natural Resources & Energy", 1.0
+
+        if re.search(r"\b(software|technology|digital|app|platform|system|wifi|data|ai|cloud|e commerce|e-commerce)\b", text):
+            return "Information, Tech & Telecommunications", 0.9
+
+        if re.search(r"\b(education|school|tuition|learning|training|university|kindergarten|course)\b", text):
+            return "Education", 1.0
+
+        # mid signal
+        if re.search(r"\b(food|restaurant|cafe|kopi|bakery|pizza|steak|dim sum|coffee|beverage)\b", text):
+            return "Food & Beverages", 1.0
+
+        if re.search(r"\b(grocery|supermarket|organic|snack|consumer product)\b", text):
+            return "FMCG", 1.0 #  0.9
+
+        if re.search(r"\b(beauty|skincare|cosmetic|spa|salon|aesthetic|perfume|fragrance)\b", text):
+            return "Beauty & Body Care", 1.0
+
+        if re.search(r"\b(clothing|fashion|apparel|jewellery|boutique|wear|hijab)\b", text):
+            return "Fashion & Lifestyle", 1.0
+
+        if re.search(r"\b(construction|contractor|interior|renovation|furniture|lighting|kitchen|bathroom|home improvement)\b", text):
+            return "Interior Design & Construction", 1.0
+
+        if re.search(r"\b(manufacturing|factory|production|wholesale|supplier|industrial)\b", text):
+            return "Manufacturing & Production", 0.9 #  0.9
+
+        if re.search(r"\b(farm|agriculture|livestock|fishery|plantation)\b", text):
+            return "Agriculture & Forestry/Wildlife", 0.9 #  0.9
+
+        if re.search(r"\b(travel|tour|hotel|lodging|agency|trip|booking)\b", text):
+            return "Leisure, Tourism & Travel", 1.0
+
+        if re.search(r"\b(media|production|film|entertainment|creator|streaming|music)\b", text):
+            return "Media & Entertainment", 0.9
+
+        if re.search(r"\b(advertising|marketing|branding|pr|relations|agency)\b", text):
+            return "Advertising & Communications", 0.9
+
+        # fallback
+        if re.search(r"\b(service|cleaning|repair|consultant|advisor|printing|maintenance)\b", text):
+            return "Consumer Services", 0.7
+
         return None, None
 
-    # custom override
-    if re.search(r"\b(adnexio|decoris|meniaga|invoke)\b", text):
-        return "Information, Tech & Telecommunications", 1.0
+    # ==========================================================
+    # PROXY KEY (dedupe repeated rows)
+    # ==========================================================
+    target["proxy_key"] = (
+        target["campaign_name"].fillna("") + "|" +
+        target["ad_body"].fillna("")
+    )
 
-    # # high precision
-    # if re.search(r"\b(ngo|non[- ]?government|government|netizen|public|rakyat|community|charity|selangor|foundation|pertubuhan|kebajikan|politics|political|politician|non profit|non-profit|nonprofit)\b", text):
-    #     return "NGOs", 1.0
+    # ==========================================================
+    # BATCH LLM
+    # ==========================================================
+    def classify_batch(chunk):
+        rows_txt = []
 
-    # =========================
-    # GOVERNMENT (FIRST)
-    # =========================
-    if re.search(r"\b(government|kerajaan|ministry|kementerian|jabatan)\b", text):
-        return "Government", 1.0 # 1.0
+        for i, (_, row) in enumerate(chunk.iterrows(), start=1):
+            rows_txt.append(
+                f"""{i}
+    ad_body: {row.get("ad_body","")}
+    creative_name: {row.get("creative_name","")}
+    ad_title: {row.get("ad_title","")}
+    interests: {row.get("interests","")}
+    behaviors: {row.get("behaviors","")}
+    campaign_name: {row.get("campaign_name","")}
+    """
+            )
 
-    if re.search(r"\b(politics|political|politician|Politician|Political Candidate)\b", text):
-        return "Politician", 1.0 # 1.0
+        prompt = f"""
+    Classify each item into EXACTLY ONE label from:
 
-    # =========================
-    # NGOs (SECOND)
-    # =========================
-    if re.search(r"\b(Ayuh Malaysia|ngo|non[- ]?government|non profit|non-profit|nonprofit|charity|foundation|netizen|rakyat|community|pertubuhan|kebajikan|community organization|volunteer)\b", text):
-        return "NGOs", 1.0 # 1.0
+    {chr(10).join(LABELS)}
 
-    if re.search(r"\b(clinic|hospital|medical|doctor|pharmacy|dentist|health|wellness|supplement|vitamin)\b", text):
-        return "Healthcare & Life Sciences", 1.0
+    Return ONLY lines in this format:
+    1|Label
+    2|Label
+    3|Label
 
-    if re.search(r"\b(finance|financial|insurance|takaful|investment|wealth|loan|credit)\b", text):
-        return "Finance & Insurance", 0.9
+    Items:
+    {chr(10).join(rows_txt)}
+    """
 
-    if re.search(r"\b(property|real estate|hartanah|developer|condo|apartment|realty)\b", text):
-        return "Property & Real Estate", 1.0
+        try:
+            r = client.responses.create(
+                model=MODEL,
+                temperature=0,
+                input=prompt
+            )
 
-    if re.search(r"\b(auto|car|motor|vehicle|dealership|4s|tuning)\b", text):
-        return "Automotive", 1.0
+            txt = r.output[0].content[0].text.strip()
+            return txt
 
-    if re.search(r"\b(logistic|freight|cargo|shipping|courier|delivery|fleet)\b", text):
-        return "Logistics & Transportation", 1.0
-
-    if re.search(r"\b(energy|solar|oil|gas|power|charging)\b", text):
-        return "Natural Resources & Energy", 1.0
-
-    if re.search(r"\b(software|technology|digital|app|platform|system|wifi|data|ai|cloud|e commerce|e-commerce)\b", text):
-        return "Information, Tech & Telecommunications", 0.9
-
-    if re.search(r"\b(education|school|tuition|learning|training|university|kindergarten|course)\b", text):
-        return "Education", 1.0
-
-    # mid signal
-    if re.search(r"\b(food|restaurant|cafe|kopi|bakery|pizza|steak|dim sum|coffee|beverage)\b", text):
-        return "Food & Beverages", 1.0
-
-    if re.search(r"\b(grocery|supermarket|organic|snack|consumer product)\b", text):
-        return "FMCG", 1.0 #  0.9
-
-    if re.search(r"\b(beauty|skincare|cosmetic|spa|salon|aesthetic|perfume|fragrance)\b", text):
-        return "Beauty & Body Care", 1.0
-
-    if re.search(r"\b(clothing|fashion|apparel|jewellery|boutique|wear|hijab)\b", text):
-        return "Fashion & Lifestyle", 1.0
-
-    if re.search(r"\b(construction|contractor|interior|renovation|furniture|lighting|kitchen|bathroom|home improvement)\b", text):
-        return "Interior Design & Construction", 1.0
-
-    if re.search(r"\b(manufacturing|factory|production|wholesale|supplier|industrial)\b", text):
-        return "Manufacturing & Production", 0.9 #  0.9
-
-    if re.search(r"\b(farm|agriculture|livestock|fishery|plantation)\b", text):
-        return "Agriculture & Forestry/Wildlife", 0.9 #  0.9
-
-    if re.search(r"\b(travel|tour|hotel|lodging|agency|trip|booking)\b", text):
-        return "Leisure, Tourism & Travel", 1.0
-
-    if re.search(r"\b(media|production|film|entertainment|creator|streaming|music)\b", text):
-        return "Media & Entertainment", 0.9
-
-    if re.search(r"\b(advertising|marketing|branding|pr|relations|agency)\b", text):
-        return "Advertising & Communications", 0.9
-
-    # fallback
-    if re.search(r"\b(service|cleaning|repair|consultant|advisor|printing|maintenance)\b", text):
-        return "Consumer Services", 0.7
-
-    return None, None
-
-# ==========================================================
-# PROXY KEY (dedupe repeated rows)
-# ==========================================================
-target["proxy_key"] = (
-    target["campaign_name"].fillna("") + "|" +
-    target["ad_body"].fillna("")
-)
-
-# ==========================================================
-# BATCH LLM
-# ==========================================================
-def classify_batch(chunk):
-    rows_txt = []
-
-    for i, (_, row) in enumerate(chunk.iterrows(), start=1):
-        rows_txt.append(
-            f"""{i}
-ad_body: {row.get("ad_body","")}
-creative_name: {row.get("creative_name","")}
-ad_title: {row.get("ad_title","")}
-interests: {row.get("interests","")}
-behaviors: {row.get("behaviors","")}
-campaign_name: {row.get("campaign_name","")}
-"""
-        )
-
-    prompt = f"""
-Classify each item into EXACTLY ONE label from:
-
-{chr(10).join(LABELS)}
-
-Return ONLY lines in this format:
-1|Label
-2|Label
-3|Label
-
-Items:
-{chr(10).join(rows_txt)}
-"""
-
-    try:
-        r = client.responses.create(
-            model=MODEL,
-            temperature=0,
-            input=prompt
-        )
-
-        txt = r.output[0].content[0].text.strip()
-        return txt
-
-    except:
-        return ""
+        except:
+            return ""
 
 
-def parse_result(txt):
-    out = {}
+    def parse_result(txt):
+        out = {}
 
-    for line in txt.splitlines():
-        if "|" not in line:
-            continue
+        for line in txt.splitlines():
+            if "|" not in line:
+                continue
 
-        left, right = line.split("|", 1)
+            left, right = line.split("|", 1)
 
-        left = left.strip()
-        label = right.strip()
+            left = left.strip()
+            label = right.strip()
 
-        if left.isdigit():
-            idx = int(left)
+            if left.isdigit():
+                idx = int(left)
 
-            final_label = "Unknown"
+                final_label = "Unknown"
 
-            for x in LABELS:
-                if x.lower() in label.lower():
-                    final_label = x
-                    break
+                for x in LABELS:
+                    if x.lower() in label.lower():
+                        final_label = x
+                        break
 
-            out[idx] = final_label
+                out[idx] = final_label
 
-    return out
+        return out
 
 
-# ==========================================================
-# RULE BASED FIRST
-# ==========================================================
-labels = []
-scores = []
+    # ==========================================================
+    # RULE BASED FIRST
+    # ==========================================================
+    labels = []
+    scores = []
 
-for _, row in target.iterrows():
-    label, score = rule_based(row)
-    labels.append(label)
-    scores.append(score)
+    for _, row in target.iterrows():
+        label, score = rule_based(row)
+        labels.append(label)
+        scores.append(score)
 
-target["predicted_industry"] = labels
-target["score"] = scores
+    target["predicted_industry"] = labels
+    target["score"] = scores
 
-# ==========================================================
-# LLM ONLY UNRESOLVED
-# ==========================================================
-need_llm = target[target["predicted_industry"].isna()].copy()
+    # ==========================================================
+    # LLM ONLY UNRESOLVED
+    # ==========================================================
+    need_llm = target[target["predicted_industry"].isna()].copy()
 
-print("Need LLM:", len(need_llm))
+    print("Need LLM:", len(need_llm))
 
-n = len(need_llm)
-num_batches = math.ceil(n / BATCH_SIZE)
+    n = len(need_llm)
+    num_batches = math.ceil(n / BATCH_SIZE)
 
-for b in range(num_batches):
-    start = b * BATCH_SIZE
-    end = start + BATCH_SIZE
+    for b in range(num_batches):
+        start = b * BATCH_SIZE
+        end = start + BATCH_SIZE
 
-    chunk = need_llm.iloc[start:end]
+        chunk = need_llm.iloc[start:end]
 
-    print(f"Batch {b+1}/{num_batches}")
+        print(f"Batch {b+1}/{num_batches}")
 
-    raw = classify_batch(chunk)
-    parsed = parse_result(raw)
+        raw = classify_batch(chunk)
+        parsed = parse_result(raw)
 
-    for i, idx in enumerate(chunk.index, start=1):
-        label = parsed.get(i, "Unknown")
-        score = 0.9 if label != "Unknown" else 0.0
+        for i, idx in enumerate(chunk.index, start=1):
+            label = parsed.get(i, "Unknown")
+            score = 0.9 if label != "Unknown" else 0.0
 
-        target.loc[idx, "predicted_industry"] = label
-        target.loc[idx, "score"] = score
+            target.loc[idx, "predicted_industry"] = label
+            target.loc[idx, "score"] = score
 
-# ==========================================================
-# WRITE BACK (same row order preserved)
-# ==========================================================
-df.loc[target.index, "predicted_industry"] = target["predicted_industry"]
-df.loc[target.index, "score"] = target["score"]
-df.loc[target.index, "industry_source"] = "ad_proxy"
+    # ==========================================================
+    # WRITE BACK (same row order preserved)
+    # ==========================================================
+    df.loc[target.index, "predicted_industry"] = target["predicted_industry"]
+    df.loc[target.index, "score"] = target["score"]
+    df.loc[target.index, "industry_source"] = "ad_proxy"
 
-# ==========================================================
-# SAVE
-# ==========================================================
-csv_bytes = df.to_csv(index=False).encode("utf-8")
+    # ==========================================================
+    # SAVE
+    # ==========================================================
+    csv_bytes = df.to_csv(index=False).encode("utf-8")
 
-s3.put_object(
-    Bucket=S3_BUCKET,
-    Key=S3_OUTPUT,
-    Body=csv_bytes
-)
+    s3.put_object(
+        Bucket=S3_BUCKET,
+        Key=S3_OUTPUT,
+        Body=csv_bytes
+    )
 
-print("Filled rows:", len(target))
-print("Uploaded:", S3_OUTPUT)
+    print("Filled rows:", len(target))
+    print("Uploaded:", S3_OUTPUT)
+
+
+if __name__ == "__main__":
+    main()

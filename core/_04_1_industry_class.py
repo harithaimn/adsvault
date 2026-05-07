@@ -33,88 +33,94 @@ s3 = boto3.client(
     region_name=AWS_DEFAULT_REGION
 )
 
-# ==========================================================
-# LOAD
-# ==========================================================
-obj_ads = s3.get_object(Bucket=S3_BUCKET, Key=S3_ADS)
-obj_master = s3.get_object(Bucket=S3_BUCKET, Key=S3_MASTER)
+def main():
+        
+    # ==========================================================
+    # LOAD
+    # ==========================================================
+    obj_ads = s3.get_object(Bucket=S3_BUCKET, Key=S3_ADS)
+    obj_master = s3.get_object(Bucket=S3_BUCKET, Key=S3_MASTER)
 
-df_ads = pd.read_csv(
-    obj_ads["Body"],
-    dtype={"page_id": "string"}
-)
-
-df_master = pd.read_csv(
-    obj_master["Body"],
-    dtype={"page_id": "string"}
-)
-# ==========================================================
-# CLEAN TYPES
-# ==========================================================
-def clean_page_id(series):
-    return (
-        series.astype("string")
-        .str.strip()
-        .str.replace(r"\.0$", "", regex=True)
-        .replace({"nan": pd.NA, "<NA>": pd.NA, "None": pd.NA})
+    df_ads = pd.read_csv(
+        obj_ads["Body"],
+        dtype={"page_id": "string"}
     )
 
-df_ads["page_id"] = clean_page_id(df_ads["page_id"])
-df_master["page_id"] = clean_page_id(df_master["page_id"])
+    df_master = pd.read_csv(
+        obj_master["Body"],
+        dtype={"page_id": "string"}
+    )
+    # ==========================================================
+    # CLEAN TYPES
+    # ==========================================================
+    def clean_page_id(series):
+        return (
+            series.astype("string")
+            .str.strip()
+            .str.replace(r"\.0$", "", regex=True)
+            .replace({"nan": pd.NA, "<NA>": pd.NA, "None": pd.NA})
+        )
 
-print(df_master.columns.tolist())
-print(df_master.head())
+    df_ads["page_id"] = clean_page_id(df_ads["page_id"])
+    df_master["page_id"] = clean_page_id(df_master["page_id"])
 
-# ==========================================================
-# MASTER KEEP ONLY NEEDED COLS
-# ==========================================================
-keep_cols = [
-    "page_id",
-    "predicted_industry",
-    "score"
-]
+    print(df_master.columns.tolist())
+    print(df_master.head())
 
-keep_cols = [c for c in keep_cols if c in df_master.columns]
+    # ==========================================================
+    # MASTER KEEP ONLY NEEDED COLS
+    # ==========================================================
+    keep_cols = [
+        "page_id",
+        "predicted_industry",
+        "score"
+    ]
 
-df_master = (
-    df_master[keep_cols]
-    .drop_duplicates(subset=["page_id"])
-)
+    keep_cols = [c for c in keep_cols if c in df_master.columns]
 
-# ==========================================================
-# MERGE
-# ==========================================================
-df = df_ads.merge(
-    df_master,
-    on="page_id",
-    how="left"
-)
+    df_master = (
+        df_master[keep_cols]
+        .drop_duplicates(subset=["page_id"])
+    )
 
-# ==========================================================
-# FLAGS
-# ==========================================================
-df["industry_source"] = df["predicted_industry"].notna().map(
-    {True: "page_master", False: None}
-)
+    # ==========================================================
+    # MERGE
+    # ==========================================================
+    df = df_ads.merge(
+        df_master,
+        on="page_id",
+        how="left"
+    )
 
-# ==========================================================
-# SAVE
-# ==========================================================
-csv_bytes = df.to_csv(index=False).encode("utf-8")
+    # ==========================================================
+    # FLAGS
+    # ==========================================================
+    df["industry_source"] = df["predicted_industry"].notna().map(
+        {True: "page_master", False: None}
+    )
 
-s3.put_object(
-    Bucket=S3_BUCKET,
-    Key=S3_OUTPUT,
-    Body=csv_bytes
-)
+    # ==========================================================
+    # SAVE
+    # ==========================================================
+    csv_bytes = df.to_csv(index=False).encode("utf-8")
 
-# ==========================================================
-# LOG
-# ==========================================================
-mapped = df["predicted_industry"].notna().sum()
-unmapped = df["predicted_industry"].isna().sum()
+    s3.put_object(
+        Bucket=S3_BUCKET,
+        Key=S3_OUTPUT,
+        Body=csv_bytes
+    )
 
-print("Rows:", len(df))
-print("Mapped industry:", mapped)
-print("Unmapped industry:", unmapped)
-print("Uploaded:", S3_OUTPUT)
+    # ==========================================================
+    # LOG
+    # ==========================================================
+    mapped = df["predicted_industry"].notna().sum()
+    unmapped = df["predicted_industry"].isna().sum()
+
+    print("Rows:", len(df))
+    print("Mapped industry:", mapped)
+    print("Unmapped industry:", unmapped)
+    print("Uploaded:", S3_OUTPUT)
+
+
+if __name__ == "__main__":
+    main()
