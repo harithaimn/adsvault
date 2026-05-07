@@ -1,0 +1,5 @@
+{
+  "act_1836231779759395": "error: HTTPSConnectionPool(host='graph.facebook.com', port=443): Max retries exceeded with url: /v24.0/23860190746650085/ads?fields=id%2Cname%2Cstatus%2Ccreative%7Bname%2Ctitle%2Cbody%2Cobject_story_spec%2Ceffective_object_story_id%7D%2Cinsights.time_range%28%7B%27since%27%3A%272023-12-01%27%2C%27until%27%3A%272026-04-13%27%7D%29%7Bdate_start%2Cdate_stop%2Cspend%2Cresults%2Ccost_per_result%2Cactions%2Ccost_per_action_type%7D&limit=100&access_token=EAAJbPOE0yTIBP3N1hfB6WTP5SsVIJ533AjqZCZAuqnBVkeGLw0uDZBZCF1PS4U5ZAa80qTiBHXnZBqusIolBcJCJlH4u6Ste2oN0jtaB3xUCtzZBjiHhsDB5eSUgNZA1n0Yq3pbxMZAAzRXsc6kifWh0RZCpmqFIG0KY4VoAMiUZAHRUFHZAqQW5mpDhZBHNqNbk3 (Caused by NameResolutionError(\"HTTPSConnection(host='graph.facebook.com', port=443): Failed to resolve 'graph.facebook.com' ([Errno -3] Temporary failure in name resolution)\"))",
+  "act_379859374796069": "done",
+  "act_362641672482631": "done"
+}
