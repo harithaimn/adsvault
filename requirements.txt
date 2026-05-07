@@ -1,0 +1,27 @@
+requests
+pandas
+python-dotenv
+boto3
+tqdm
+
+pyspark
+pymongo
+
+
+openai
+
+streamlit
+#transformers
+#torch
+#datasets
+
+#testing purpose:
+#streamlit
+#boto3
+
+#scikit-learn
+#accelerate
+
+
+# Improving RAG
+rank_bm25

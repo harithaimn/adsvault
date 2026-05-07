@@ -1,0 +1,19 @@
+# .streamlit/config.toml
+
+[theme]
+base = "dark"
+
+primaryColor = "#D4AF37"
+
+backgroundColor = "#0E1117"
+secondaryBackgroundColor = "#161B22"
+textColor = "#FAFAFA"
+
+[server]
+headless = true
+runOnSave = true
+
+[browser]
+gatherUsageStats = false
+serverAddress = "localhost"
+
