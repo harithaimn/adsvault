@@ -26,11 +26,11 @@ from core._00_1_ad_acc_fetch_pageid import main as ingest_ads
 AD_ACCOUNTS = [
     "act_379859374796069",  # Decoris | CLIENTS #3 | Malaysia [IOC]
     "act_362641672482631",  # decoris | INTERNAL | Malaysia | [IOC]
-    "act_1836231779759395", # Decoris | CLIENTS#2 | Malaysia | [IOC]
-    "act_775995296641112",  # Decoris | CLIENTS#1 | Malaysia | [IOC]
+    #"act_1836231779759395", # Decoris | CLIENTS#2 | Malaysia | [IOC]
+    #"act_775995296641112",  # Decoris | CLIENTS#1 | Malaysia | [IOC]
 ]
 
-CHECKPOINT_FILE = "test/_00_0_checkpoint.json"
+CHECKPOINT_FILE = "core/_00_0_checkpoint.json"
 
 
 # =========================
