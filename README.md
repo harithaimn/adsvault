@@ -20,7 +20,6 @@ Features:
 core/      # pipeline scripts
 pages/     # streamlit app
 data/      # local datasets
-test/      # checkpoints/tests
 ```
 
 ---
