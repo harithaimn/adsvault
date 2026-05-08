@@ -39,11 +39,22 @@ class RAGRetriever:
     def __init__(self, ads: list[dict]):
         self.ads = ads
         #self.model = SentenceTransformer("all-MiniLM-L6-v2")
-        #self.model = SentenceTransformer("BAAI/bge-m3") # Malay, mixed-language retrieval, slang.
-        self.model = SentenceTransformer("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+        #self.model = SentenceTransformer("BAAI/bge-m3") # Malay, mixed-language retrieval, slang. Not using this since this is big.
+
+        #self.model = SentenceTransformer("sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2")
+
+        # Load embedding model that has been downloaded from core/_06_1_download_models.py
+        self.model = SentenceTransformer(
+            "./models/paraphrase-multilingual-MiniLM-L12-v2"
+        )
 
         # Reranker
-        self.reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+        #self.reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+
+        # Load reranker model that has been downloaded from core/_06_1_download_models.py
+        self.reranker = CrossEncoder(
+            "./models/ms-marco-MiniLM-L-6-v2"
+        )
 
         self.texts = [self._build_text(ad) for ad in ads]
 
