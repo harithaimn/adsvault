@@ -331,8 +331,8 @@ HORIZONTAL SCROLL ADS
 }
 
 .similar-card{
-    min-width:240px;
-    max-width:240px;
+    min-width:320px;
+    max-width:320px;
 
     background:linear-gradient(
         180deg,
@@ -367,7 +367,87 @@ HORIZONTAL SCROLL ADS
     font-size:11px;
     color:#94a3b8;
 }
-            
+
+/* ======================================================
+TOP RANK CARD
+====================================================== */
+
+.top-rank-card{
+
+    background:linear-gradient(
+        180deg,
+        rgba(10,14,22,0.98),
+        rgba(5,8,15,1)
+    );
+
+    border:1px solid rgba(212,175,55,0.12);
+
+    border-radius:22px;
+
+    padding:14px;
+
+    overflow:hidden;
+
+    box-shadow:
+    0 10px 30px rgba(0,0,0,0.28);
+
+    margin-bottom:18px;
+
+    min-height:100%;
+}
+
+/* IMAGE */
+
+.top-rank-image{
+
+    width:100%;
+
+    height:430px;
+
+    object-fit:cover;
+
+    border-radius:18px;
+
+    display:block;
+}
+
+/* PREMIUM METRICS */
+
+.metric-mini{
+
+    background:rgba(255,255,255,0.03);
+
+    border:1px solid rgba(255,255,255,0.05);
+
+    border-radius:14px;
+
+    padding:12px;
+}
+
+/* LABEL */
+
+.metric-mini-label{
+
+    font-size:11px;
+
+    color:#94A3B8;
+
+    margin-bottom:6px;
+}
+
+/* VALUE */
+
+.metric-mini-value{
+
+    font-size:24px;
+
+    font-weight:800;
+
+    color:white;
+
+    margin-bottom:10px;
+}
+                        
 /* ======================================================
 TIP BOX
 ====================================================== */
@@ -386,30 +466,6 @@ TIP BOX
     color:#d1d5db;
 }
 
-            
-            
-/* ======================================================
-STREAMLIT CONTAINER OVERRIDE
-====================================================== */
-
-[data-testid="stVerticalBlockBorderWrapper"]{
-background:linear-gradient(
-    180deg,
-    rgba(17,24,39,0.96),
-    rgba(10,14,22,1)
-) !important;
-
-border:1px solid rgba(212,175,55,0.14) !important;
-
-border-radius:18px !important;
-
-padding:14px !important;
-
-overflow:hidden !important;
-
-box-shadow:
-0 10px 30px rgba(0,0,0,0.25) !important;
-            
 </style>
 """, unsafe_allow_html=True)
 
@@ -484,6 +540,7 @@ def first_existing(keys):
     return None
 
 
+# Temporary til i fix the s3 media url issue
 def get_media_url(row):
 
     ad_id = safe(row.get("ad_id"))
@@ -495,14 +552,39 @@ def get_media_url(row):
     base = f"data/ads_images_videos/{ad_account_id}"
 
     candidates = [
+        # ======================================================
+        # IG VARIANTS
+        # ======================================================
+
         f"{base}/images/{ad_id}_ig.jpg",
         f"{base}/images/{ad_id}_ig.png",
+
+        # ======================================================
+        # STANDARD IMAGES
+        # ======================================================
+
         f"{base}/images/{ad_id}.jpg",
         f"{base}/images/{ad_id}.png",
-        f"{base}/thumbnails/{ad_id}_video.jpg",
-        f"{base}/thumbnails/{ad_id}_video.png",
+
+        # ======================================================
+        # ALT VARIANTS
+        # ======================================================
+
         f"{base}/images/{ad_id}_alt.jpg",
         f"{base}/images/{ad_id}_alt.png",
+
+        # ======================================================
+        # VIDEO THUMBNAILS
+        # ======================================================
+
+        f"{base}/thumbnails/{ad_id}_ig.jpg",
+        f"{base}/thumbnails/{ad_id}_ig.png",
+
+        f"{base}/thumbnails/{ad_id}_video.jpg",
+        f"{base}/thumbnails/{ad_id}_video.png",
+
+        # f"{base}/videos/{ad_id}.mp4",
+        # f"{base}/videos/{ad_id}_ig.mp4",
     ]
 
     key = first_existing(candidates)
@@ -549,8 +631,12 @@ def top_category(results):
 # ======================================================
 df = load_data()
 
-with st.spinner("Loading RAG engine..."):
-    rag = load_rag(df)
+df["campaign_start_date"] = pd.to_datetime(
+    df["campaign_start_date"],
+    errors="coerce"
+)
+
+rag = None
 
 total_ads = df["ad_id"].nunique()
 
@@ -570,12 +656,13 @@ rgba(212,175,55,0)
 margin-bottom:20px;
 "></div>
 """, unsafe_allow_html=True)
-c1, c2 = st.columns([8,1])
+
+c1, c2 = st.columns([10,1.2])
 
 with c1:
     query = st.text_input(
         "",
-        placeholder="pizza",
+        placeholder="Search campaigns, ads, creatives & more...",
         label_visibility="collapsed"
     )
 
@@ -586,25 +673,295 @@ with c2:
     )
 
 # ======================================================
-# DEFAULT VIEW
+# FILTERS
 # ======================================================
+
+# with st.expander("Filters", expanded=False):
+
+f1, f2, f3 = st.columns(3)
+
+with f1:
+    selected_ad_account = st.multiselect(
+        "Ad Account",
+        sorted(df["ad_account_name"].dropna().unique())
+    )
+
+with f2:
+    selected_page_category = st.multiselect(
+        "Page Category",
+        sorted(df["page_category"].dropna().unique())
+    )
+
+with f3:
+    selected_industry = st.multiselect(
+        "Industry",
+        sorted(df["industry"].dropna().unique())
+    )
+
+f4, f5 = st.columns(2)
+
+with f4:
+    selected_result_type = st.multiselect(
+        "Result Type",
+        sorted(df["result_type"].dropna().unique())
+    )
+
+with f5:
+
+    df["campaign_start_date"] = pd.to_datetime(
+        df["campaign_start_date"],
+        errors="coerce"
+    )
+
+    min_date = df["campaign_start_date"].min()
+    max_date = df["campaign_start_date"].max()
+
+    selected_dates = st.date_input(
+        "Campaign Date Range",
+        value=(min_date, max_date),
+        min_value=min_date,
+        max_value=max_date
+    )
+
+
 if not run or not query.strip():
+        
+    # ======================================================
+    # HERO
+    # ======================================================
+
+    st.markdown("""
+
+    <div style="
+    padding-top:18px;
+    padding-bottom:26px;
+    max-width:900px;
+    ">
+
+    <div style="
+    font-size:18px;
+    font-weight:600;
+    color:#F5D76E;
+    margin-bottom:8px;
+    letter-spacing:-0.02em;
+    ">
+    Creative Intelligence Search Engine
+    </div>
+
+    <div style="
+    font-size:32px;
+    font-weight:800;
+    line-height:1.05;
+    letter-spacing:-0.04em;
+    color:white;
+    margin-bottom:10px;
+    ">
+    Search High-Performing Ads,
+    Targeting & Campaign
+    </div>
+
+    <div style="
+    font-size:16px;
+    line-height:1.7;
+    color:#94A3B8;
+    max-width:760px;
+    ">
+    Search benchmarked Meta ads across industries, pages,
+    psychographics, creatives, campaigns.
+    </div>
+
+    </div>
+
+    """, unsafe_allow_html=True)
+
+    # ======================================================
+    # PLATFORM METRICS
+    # ======================================================
+
+    m1, m2, m3 = st.columns(3)
+
+    m1.metric(
+        "Total Ads (Benchmarked)",
+        f"{df['ad_id'].nunique():,}"
+    )
+
+    m2.metric(
+        "FB Pages",
+        f"{df['page_name'].nunique():,}"
+    )
+
+    m3.metric(
+        "Industries",
+        f"{df['industry'].nunique():,}"
+    )
+
+    # ======================================================
+    # FEATURED ADS
+    # ======================================================
+
+    st.markdown("## Featured Ads")
+
+    featured = (
+        df.sort_values("results", ascending=False)
+        .head(12)
+        .to_dict(orient="records")
+    )
+
+    featured_html = '<div class="scroll-container">'
+
+    for r in featured:
+
+        media = get_media_url(r)
+
+        image_html = ""
+
+        if media:
+            image_html = f'''
+<div style="
+height:140px;
+overflow:hidden;
+">
+<img src="{media}" style="
+width:100%;
+height:100%;
+object-fit:cover;
+display:block;
+">
+</div>
+    '''
+
+        featured_html += f"""
+
+<div class="similar-card">
+
+{image_html}
+
+<div class="similar-meta">
+
+<div class="similar-title">
+{safe(r.get("page_name"))}
+</div>
+
+<div class="similar-sub">
+{safe(r.get("page_category"))}
+</div>
+
+<div class="similar-sub">
+Results: {safe(r.get("results"))}
+</div>
+
+</div>
+
+</div>
+    """
+
+    featured_html += "</div>"
+
+    st.markdown(featured_html, unsafe_allow_html=True)
+
+    # ======================================================
+    # DEFAULT VIEW
+    # ======================================================
+
 
     st.subheader("Full Ads Table")
 
-    st.dataframe(
-        df.head(300),
-        use_container_width=True,
-        height=860
-    )
+    full_cols = [
+        "ad_account_name",
+        "campaign_name",
+        "campaign_status",
+        "campaign_objective",
+        "adset_name",
+        "adset_status",
+        "optimization_goal",
+        "age_min",
+        "age_max",
+        "genders",
+        "countries",
+        "interests",
+        "behaviors",
+        "ad_name",
+        "ad_status",
+        "creative_name",
+        "ad_type",
+        "date_start",
+        "date_stop",
+        "ad_body",
+        "page_name",
+        "page_category",
+        "industry",
+        "page_description",
+        "page_website",
+        "has_facebook_page",
+        "result_type",
+        "results",
+        "cost_per_results",
+        "spend",
+    ]
+
+    full_cols = [c for c in full_cols if c in df.columns]
+
+    with st.expander("View Full Ads Database"):
+        st.dataframe(
+            df[full_cols],
+            use_container_width=True,
+            height=860
+        )
 
     st.stop()
 
 # ======================================================
+# APPLY FILTERS
+# ======================================================
+
+filtered_df = df.copy()
+
+if selected_ad_account:
+    filtered_df = filtered_df[
+        filtered_df["ad_account_name"].isin(selected_ad_account)
+    ]
+
+if selected_page_category:
+    filtered_df = filtered_df[
+        filtered_df["page_category"].isin(selected_page_category)
+    ]
+
+if selected_industry:
+    filtered_df = filtered_df[
+        filtered_df["industry"].isin(selected_industry)
+    ]
+
+if selected_result_type:
+    filtered_df = filtered_df[
+        filtered_df["result_type"].isin(selected_result_type)
+    ]
+
+if len(selected_dates) == 2:
+
+    start_date, end_date = selected_dates
+
+    filtered_df = filtered_df[
+        (
+            filtered_df["campaign_start_date"]
+            >= pd.to_datetime(start_date)
+        )
+        &
+        (
+            filtered_df["campaign_start_date"]
+            <= pd.to_datetime(end_date)
+        )
+    ]
+
+# ======================================================
 # SEARCH
 # ======================================================
+with st.spinner("Loading RAG engine..."):
+
+    rag = load_rag(filtered_df)
+
 with st.spinner("Searching..."):
-    results = rag.retrieve_tiered(query, k=15) # k=10 default
+
+    results = rag.retrieve_tiered(query, k=15)
 
 if not results:
     st.warning("No results found.")
@@ -622,7 +979,30 @@ brands = len(set(
     if safe(r.get("page_name"))
 ))
 
-st.markdown(f"## Search Query: `{query}`")
+#st.markdown(f"## Search Query: `{query}`")
+st.markdown(f"""
+<div style="
+    display:flex;
+    align-items:center;
+    gap:12px;
+    margin-bottom:18px;
+">
+
+<div style="
+    font-size:35px;
+    font-weight:500;
+    letter-spacing:-0.03em;
+">
+Search Query:
+</div>
+<div style="padding:8px 12px;border-radius:12px;background:rgba(212,175,55,0.10);border:1px solid rgba(212,175,55,0.18);color:#F5D76E;font-size:25px;font-weight:400;
+">
+{query}
+</div>
+
+</div>
+""", unsafe_allow_html=True)
+
 
 k0,k1,k2,k3 = st.columns(4)
 
@@ -644,195 +1024,172 @@ cols = st.columns([1,1,1], gap="large")
 for col, r, idx in zip(cols, results[:3], [1,2,3]):
 
     with col:
-        with st.container(border=True):
+        # ======================================================
+        # START CARD
+        # ======================================================
 
-            st.markdown(f"""
-<div style="
-display:flex;
-align-items:center;
-justify-content:space-between;
-margin-bottom:10px;
-">
+        card_html = """
+<div class="top-rank-card">
+"""
+        # ======================================================
+        # SCORE HEADER
+        # ======================================================
 
-<div style="
-font-size:30px;
-font-weight:700;
-color:#F5D76E;
-">
-{round(r['score'],1)}
-</div>
+        card_html += f"""
 
-<div class="small-badge {tier_class(r['score'])}">
-{tier_name(r['score'])}
-</div>
+<div class="card-top">
+<div class="score-text">{round(r['score'],1)}</div>
+<div class="small-badge {tier_class(r['score'])}">{tier_name(r['score'])}</div>
 
 </div>
-""", unsafe_allow_html=True)
 
-            media = get_media_url(r)
+"""
+        # ======================================================
+        # IMAGE
+        # ======================================================
+        media = get_media_url(r)
 
             # if media:
             #     st.image(media, use_container_width=True)
-            if media:
-                st.markdown(f"""
-                <div style="
-                height:450px;
-                overflow:hidden;
-                border-radius:14px;
-                margin-bottom:12px;
-                ">
-                    <img src="{media}" style="
-                        width:100%;
-                        height:100%;
-                        object-fit:cover;
-                    ">
-                </div>
-                """, unsafe_allow_html=True)
+        if media:
 
-            st.markdown(f"""
-<div style="
-color:#F5D76E;
-font-size:16px;
-font-weight:700;
-margin-top:10px;
-margin-bottom:3px;
-">
+            card_html += f"""
+
+<div style="position:relative;">
+<img src="{media}" class="top-rank-image">
+<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.06),rgba(0,0,0,0.18));pointer-events:none;"></div>
+</div>
+"""
+        # ======================================================
+        # PAGE INFO
+        # ======================================================    
+        card_html += f"""
+<div style="color:#F5D76E;font-size:16px;font-weight:700;margin-top:14px;margin-bottom:3px;">
 {safe(r.get('ad_account_name'))}
 </div>
-""", unsafe_allow_html=True)
 
-            st.markdown(f"""
-<div style="
-color:#E5E7EB;
-font-size:14px;
-font-weight:500;
-margin-bottom:6px;
-">
+<div style="color:#E5E7EB;font-size:14px;font-weight:500;margin-bottom:6px;">
 {safe(r.get('page_name'))} | {safe(r.get('page_category'))}
 </div>
-""", unsafe_allow_html=True)
+"""
+        
+        # ======================================================
+        # CLEAN FIELDS
+        # ======================================================
+        campaign = safe(r.get("campaign_name"))
+        adset = safe(r.get("adset_name"))
+        ad = safe(r.get("ad_name"))
+        body = safe(r.get("ad_body"))
 
-            campaign = safe(r.get("campaign_name"))
+        if len(campaign) > 80:
+            campaign = campaign[:80] + "..."
 
-            if len(campaign) > 80:
-                campaign = campaign[:80] + "..."
+        if len(adset) > 50:
+            adset = adset[:50] + "..."
 
-            adset = safe(r.get("adset_name"))
+        if len(ad) > 80:
+            ad = ad[:80] + "..."
 
-            if len(adset) > 50:
-                adset = adset[:50] + "..."
+        if len(body) > 1000:
+            body = body[:1000] + "..."
 
-            ad = safe(r.get("ad_name"))
+        body = body.replace("\n", "<br>")
 
-            if len(ad) > 80:
-                ad = ad[:80] + "..."
+        status = safe(r.get("ad_status"))
 
+        # ======================================================
+        # PSYCHOGRAPHICS
+        # ======================================================
 
+        interests_raw = safe(r.get("interests"))
+        behaviors_raw = safe(r.get("behaviors"))
 
-            body = safe(r.get("ad_body"))
+        interest_list = [
+            x.strip()
+            for x in interests_raw.split(",")
+            if x.strip()
+        ]
 
-            if len(body) > 1000:
-                body = body[:1000] + "..."
+        behavior_list = [
+            x.strip()
+            for x in behaviors_raw.split(",")
+            if x.strip()
+        ]
 
-            body = body.replace("\n", "<br>")
+        if len(interest_list) > 4:
+            interests = (
+                ", ".join(interest_list[:4])
+                + f" +{len(interest_list)-4} more"
+            )
+        else:
+            interests = ", ".join(interest_list)
 
+        if len(behavior_list) > 3:
+            behaviors = (
+                ", ".join(behavior_list[:3])
+                + f" +{len(behavior_list)-3} more"
+            )
+        else:
+            behaviors = ", ".join(behavior_list)
 
-            status = safe(r.get("ad_status"))
+        gender = safe(r.get("genders"))
+        countries = safe(r.get("countries"))
 
+        age_min = r.get("age_min")
+        age_max = r.get("age_max")
 
-            # ======================================================
-            # PSYCHOGRAPHICS
-            # ======================================================
+        if pd.notna(age_min):
+            age_min = int(float(age_min))
+        else:
+            age_min = None
 
-            interests_raw = safe(r.get("interests"))
-            behaviors_raw = safe(r.get("behaviors"))
+        if pd.notna(age_max):
+            age_max = int(float(age_max))
+        else:
+            age_max = None
 
-            interest_list = [
-                x.strip()
-                for x in interests_raw.split(",")
-                if x.strip()
-            ]
-
-            behavior_list = [
-                x.strip()
-                for x in behaviors_raw.split(",")
-                if x.strip()
-            ]
-
-            if len(interest_list) > 4:
-                interests = (
-                    ", ".join(interest_list[:4])
-                    + f" +{len(interest_list)-4} more"
-                )
-            else:
-                interests = ", ".join(interest_list)
-
-            if len(behavior_list) > 3:
-                behaviors = (
-                    ", ".join(behavior_list[:3])
-                    + f" +{len(behavior_list)-3} more"
-                )
-            else:
-                behaviors = ", ".join(behavior_list)
-
-            gender = safe(r.get("genders"))
-            countries = safe(r.get("countries"))
-
-            age_min = r.get("age_min")
-            age_max = r.get("age_max")
-
-            if pd.notna(age_min):
-                age_min = int(float(age_min))
-            else:
-                age_min = None
-
-            if pd.notna(age_max):
-                age_max = int(float(age_max))
-            else:
-                age_max = None
-
-            if age_min is not None or age_max is not None:
-                age_text = f"{age_min} — {age_max}"
-            else:
-                age_text = ""
+        if age_min is not None or age_max is not None:
+            age_text = f"{age_min} — {age_max}"
+        else:
+            age_text = ""
 
 
-            psychographic_html = ""
+        psychographic_html = ""
 
-            if interests:
-                psychographic_html += f"""
+        if interests:
+            psychographic_html += f"""
 <div class="meta-row">
     <div class="meta-label">Interests</div>
     <div class="meta-value">{interests}</div>
 </div>
                 """
 
-            if behaviors:
-                psychographic_html += f"""
+        if behaviors:
+            psychographic_html += f"""
 <div class="meta-row">
     <div class="meta-label">Behaviors</div>
     <div class="meta-value">{behaviors}</div>
 </div>
                 """
 
-            if gender:
-                psychographic_html += f"""
+        if gender:
+            psychographic_html += f"""
 <div class="meta-row">
     <div class="meta-label">Gender</div>
     <div class="meta-value">{gender}</div>
 </div>
                 """
 
-            if age_text:
-                psychographic_html += f"""
+        if age_text:
+            psychographic_html += f"""
 <div class="meta-row">
     <div class="meta-label">Age</div>
     <div class="meta-value">{age_text}</div>
 </div>
                 """
 
-            if countries:
-                psychographic_html += f"""
+        if countries:
+            psychographic_html += f"""
 <div class="meta-row">
     <div class="meta-label">Countries</div>
     <div class="meta-value">{countries}</div>
@@ -840,159 +1197,148 @@ margin-bottom:6px;
                 """
                 
 
+        # ======================================================
+        # DATES
+        # ======================================================
+        
+        start_date = safe(r.get("campaign_start_date"))
+        end_date = safe(r.get("campaign_end_date"))
 
-            start_date = safe(r.get("campaign_start_date"))
-            end_date = safe(r.get("campaign_end_date"))
+        if end_date:
+            date_text = f"{start_date} — {end_date}"
+        else:
+            date_text = start_date
 
-            if end_date:
-                date_text = f"{start_date} — {end_date}"
-            else:
-                date_text = start_date
+        # ======================================================
+        # Result, Spend and CPR Cards 
+        # ======================================================
+        results_val = float(r.get("results", 0))
+        spend_val = float(r.get("spend", 0))
+        cpr_val = float(r.get("cost_per_results", 0))
 
+        results_pct = min(results_val / 150000, 1.0)
+        spend_pct = min(spend_val / 1000, 1.0)
+        cpr_pct = min(cpr_val / 5, 1.0)
 
-            ## Result, Spend and CPR Cards 
-            results_val = float(r.get("results", 0))
-            spend_val = float(r.get("spend", 0))
-            cpr_val = float(r.get("cost_per_results", 0))
+        card_html += f"""
 
-            results_pct = min(results_val / 150000, 1.0)
-            spend_pct = min(spend_val / 1000, 1.0)
-            cpr_pct = min(cpr_val / 5, 1.0)
+<div style="
+display:grid;
+grid-template-columns:1fr 1fr 1fr;
+gap:12px;
+margin-top:18px;
+">
 
-            st.markdown(f"""
+<!-- RESULTS -->
 
-            <div style="
-            display:grid;
-            grid-template-columns:1fr 1fr 1fr;
-            gap:12px;
-            margin-top:18px;
-            ">
+<div class="metric-mini">
 
-            <!-- RESULTS -->
+<div class="metric-mini-label">
+Results
+</div>
 
-            <div class="body-box">
+<div class="metric-mini-value">
+{results_val:,.0f}
+</div>
 
-            <div class="meta-label">
-            Results
-            </div>
+<div style="
+height:6px;
+background:rgba(255,255,255,0.06);
+border-radius:999px;
+overflow:hidden;
+">
 
-            <div style="
-            font-size:18px;
-            font-weight:800;
-            margin-top:6px;
-            margin-bottom:10px;
-            ">
-            {results_val:,.0f}
-            </div>
+<div style="
+width:{results_pct*100}%;
+height:100%;
+background:linear-gradient(
+90deg,
+#16A34A,
+#4ADE80
+);
+">
+</div>
 
-            <div style="
-            height:6px;
-            background:rgba(255,255,255,0.06);
-            border-radius:999px;
-            overflow:hidden;
-            ">
+</div>
 
-            <div style="
-            width:{results_pct*100}%;
-            height:100%;
-            background:linear-gradient(
-            90deg,
-            #16A34A,
-            #4ADE80
-            );
-            ">
-            </div>
+</div>
 
-            </div>
+<!-- SPEND -->
 
-            </div>
+<div class="metric-mini">
 
-            <!-- SPEND -->
+<div class="metric-mini-label">
+Spend
+</div>
 
-            <div class="body-box">
+<div class="metric-mini-value">
+RM {spend_val:,.2f}
+</div>
 
-            <div class="meta-label">
-            Spend
-            </div>
+<div style="
+height:6px;
+background:rgba(255,255,255,0.06);
+border-radius:999px;
+overflow:hidden;
+">
 
-            <div style="
-            font-size:18px;
-            font-weight:800;
-            margin-top:6px;
-            margin-bottom:10px;
-            ">
-            RM {spend_val:,.2f}
-            </div>
+<div style="
+width:{spend_pct*100}%;
+height:100%;
+background:linear-gradient(
+90deg,
+#D4AF37,
+#F5D76E
+);
+">
+</div>
 
-            <div style="
-            height:6px;
-            background:rgba(255,255,255,0.06);
-            border-radius:999px;
-            overflow:hidden;
-            ">
+</div>
 
-            <div style="
-            width:{spend_pct*100}%;
-            height:100%;
-            background:linear-gradient(
-            90deg,
-            #D4AF37,
-            #F5D76E
-            );
-            ">
-            </div>
+</div>
 
-            </div>
+<!-- CPR -->
 
-            </div>
+<div class="metric-mini">
 
-            <!-- CPR -->
+<div class="metric-mini-label">
+CPR
+</div>
 
-            <div class="body-box">
+<div class="metric-mini-value">
+RM {cpr_val:,.3f}
+</div>
 
-            <div class="meta-label">
-            CPR
-            </div>
+<div style="
+height:6px;
+background:rgba(255,255,255,0.06);
+border-radius:999px;
+overflow:hidden;
+">
 
-            <div style="
-            font-size:18px;
-            font-weight:800;
-            margin-top:6px;
-            margin-bottom:10px;
-            ">
-            RM {cpr_val:,.3f}
-            </div>
+<div style="
+width:{cpr_pct*100}%;
+height:100%;
+background:linear-gradient(
+90deg,
+#64748B,
+#CBD5E1
+);
+">
+</div>
 
-            <div style="
-            height:6px;
-            background:rgba(255,255,255,0.06);
-            border-radius:999px;
-            overflow:hidden;
-            ">
+</div>
 
-            <div style="
-            width:{cpr_pct*100}%;
-            height:100%;
-            background:linear-gradient(
-            90deg,
-            #64748B,
-            #CBD5E1
-            );
-            ">
-            </div>
+</div>
 
-            </div>
+</div>
 
-            </div>
+"""
 
-            </div>
-
-            """, unsafe_allow_html=True)
-
-
-
-
-            st.markdown(f"""
+        # ======================================================
+        # META BLOCK
+        # ======================================================
+        card_html += f"""
 
 <div class="meta-block">
 
@@ -1044,8 +1390,8 @@ margin-bottom:6px;
         Audience Targeting
     </div>
 </div>
-{psychographic_html}
 
+{psychographic_html}
 
 </div>
 
@@ -1057,9 +1403,12 @@ Ad Body
 {body}
 </div>
 
-""", unsafe_allow_html=True)
-
-       
+"""
+        # ======================================================
+        # END CARD
+        # ======================================================
+        card_html += "</div>"
+        st.markdown(card_html, unsafe_allow_html=True)     
 
 # ======================================================
 # OTHER SIMILAR ADS
@@ -1085,7 +1434,7 @@ for r in results[3:]:
     if media:
         image_html = f'''
 <div style="
-    height:120px;
+    height:180px;
     overflow:hidden;
 ">
     <img src="{media}" style="
@@ -1097,27 +1446,262 @@ for r in results[3:]:
 </div>
 '''
 
+    tier = tier_name(score)
+    tier_cls = tier_class(score)
+
+    campaign = safe(r.get("campaign_name"))
+    adset = safe(r.get("adset_name"))
+    ad_name = safe(r.get("ad_name"))
+
+    result_type = safe(r.get("result_type"))
+
+    industry = safe(r.get("page_category"))
+
+
+    if len(campaign) > 80:
+        campaign = campaign[:80] + "..."
+
+    if len(adset) > 50:
+        adset = adset[:50] + "..."
+
+    if len(ad) > 80:
+        ad = ad[:80] + "..."
+
+
     cards_html += f"""
+
 <div class="similar-card">
+
+<div style="position:relative;">
 
 {image_html}
 
+<div style="position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0.08) 0%,rgba(0,0,0,0.25) 100%);pointer-events:none;">
+</div>
+
+<div style="position:absolute;top:10px;left:10px;">
+
+<div style="
+padding:6px 10px;
+border-radius:999px;
+background:rgba(5,8,15,0.78);
+backdrop-filter:blur(8px);
+border:1px solid rgba(255,255,255,0.08);
+font-size:13px;
+font-weight:800;
+color:#F5D76E;
+box-shadow:
+0 4px 12px rgba(0,0,0,0.25);
+">
+    {score}
+</div>
+
+
+</div>
+
+<div style="position:absolute;top:10px;right:10px;">
+
+<div class="small-badge {tier_cls}" style="
+backdrop-filter:blur(8px);
+background:rgba(5,8,15,0.78);
+font-weight:800;
+box-shadow:0 4px 12px rgba(0,0,0,0.25);
+">
+    {tier}
+</div>
+
+
+</div>
+
+</div>
+
 <div class="similar-meta">
 
-<div class="similar-title">
+<!-- PAGE -->
+
+<div style="
+font-size:15px;
+font-weight:700;
+color:white;
+margin-bottom:4px;
+">
     {brand}
 </div>
 
+<div style="
+font-size:12px;
+color:#94A3B8;
+margin-bottom:12px;
+">
+    {industry}
+</div>
+
+<!-- CAMPAIGN -->
+
 <div class="similar-sub">
-    Score: {score}
+    <b>Campaign:</b> {campaign}
 </div>
 
 <div class="similar-sub">
-    Results: {results_val}
+    <b>Adset:</b> {adset}
 </div>
 
-<div class="similar-sub">
-    CPR: RM {cpr}
+<div class="similar-sub" style="margin-bottom:12px;">
+    <b>Ad:</b> {ad_name}
+</div>
+
+<!-- RESULT TYPE -->
+
+<div style="
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:12px;
+">
+
+<div style="font-size:12px;color:#94A3B8;">
+    <b>Result Type:</b> {result_type}
+</div>
+
+</div>
+
+<!-- METRICS -->
+
+<div style="
+display:grid;
+grid-template-columns:1fr 1fr 1fr;
+gap:8px;
+">
+
+<!-- RESULTS -->
+
+<div class="body-box" style="padding:10px;">
+
+<div style="
+font-size:10px;
+color:#94A3B8;
+margin-bottom:4px;
+">
+Results
+</div>
+
+<div style="
+font-size:15px;
+font-weight:800;
+color:white;
+margin-bottom:8px;
+">
+{float(results_val):,.0f}
+</div>
+
+<div style="
+height:5px;
+background:rgba(255,255,255,0.06);
+border-radius:999px;
+overflow:hidden;
+">
+
+<div style="
+width:70%;
+height:100%;
+background:linear-gradient(
+90deg,
+#16A34A,
+#4ADE80
+);
+">
+</div>
+
+</div>
+
+</div>
+
+<!-- SPEND -->
+
+<div class="body-box" style="padding:10px;">
+
+<div style="
+font-size:10px;
+color:#94A3B8;
+margin-bottom:4px;
+">
+Spend
+</div>
+
+<div style="
+font-size:15px;
+font-weight:800;
+color:white;
+margin-bottom:8px;
+">
+RM {float(r.get("spend",0)):,.0f}
+</div>
+
+<div style="
+height:5px;
+background:rgba(255,255,255,0.06);
+border-radius:999px;
+overflow:hidden;
+">
+
+<div style="
+width:45%;
+height:100%;
+background:linear-gradient(
+90deg,
+#D4AF37,
+#F5D76E
+);
+">
+</div>
+
+</div>
+
+</div>
+
+<!-- CPR -->
+
+<div class="body-box" style="padding:10px;">
+
+<div style="
+font-size:10px;
+color:#94A3B8;
+margin-bottom:4px;
+">
+CPR
+</div>
+
+<div style="
+font-size:15px;
+font-weight:800;
+color:white;
+margin-bottom:8px;
+">
+RM {float(cpr):.2f}
+</div>
+
+<div style="
+height:5px;
+background:rgba(255,255,255,0.06);
+border-radius:999px;
+overflow:hidden;
+">
+
+<div style="
+width:30%;
+height:100%;
+background:linear-gradient(
+90deg,
+#CBD5E1,
+#E2E8F0
+);
+">
+</div>
+
+</div>
+
+</div>
+
 </div>
 
 </div>
@@ -1206,21 +1790,41 @@ with st.expander("View Full Ads Database"):
     full_cols = [
         "ad_account_name",
         "campaign_name",
+        "campaign_status",
+        "campaign_objective",
         "adset_name",
+        "adset_status",
+        "optimization_goal",
+        "age_min",
+        "age_max",
+        "genders",
+        "countries",
+        "interests",
+        "behaviors",
         "ad_name",
+        "ad_status",
+        "creative_name",
+        "ad_type",
+        "date_start",
+        "date_stop",
+        "ad_body",
         "page_name",
         "page_category",
+        "industry",
+        "page_description",
+        "page_website",
+        "has_facebook_page",
+        "result_type",
         "results",
         "cost_per_results",
         "spend",
-        "date_start",
-        "date_stop"
     ]
 
     full_cols = [c for c in full_cols if c in df.columns]
 
     st.dataframe(
         df[full_cols],
+        #df,
         use_container_width=True,
         height=750
     )
