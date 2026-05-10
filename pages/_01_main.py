@@ -24,6 +24,7 @@ S3_INPUT = "data/5_data_cleaning/act_379859374796069_with_pages_final_industry_b
 # ======================================================
 st.set_page_config(
     page_title="AdsVault",
+    page_icon="pages/icon.png",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
